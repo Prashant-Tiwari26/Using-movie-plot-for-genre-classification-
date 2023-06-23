@@ -8,6 +8,11 @@ import sklearn
 import xgboost
 import catboost
 import lightgbm
+from nltk.tag import pos_tag
+from nltk.corpus import stopwords, wordnet
+from sklearn.feature_extraction.text import TfidfVectorizer
+from nltk.tokenize import word_tokenize
+from nltk.stem import WordNetLemmatizer
 import scipy
 import noisereduce as nr
 from tqdm.auto import tqdm
@@ -692,3 +697,93 @@ def BestParam_search(models:dict, x, y):
 
     else:
       continue
+
+def get_wordnet_pos(treebank_tag:str):
+    """
+    Map a Treebank part-of-speech tag to the corresponding WordNet part-of-speech tag.
+
+    Parameters:
+    - treebank_tag (str): The Treebank part-of-speech tag.
+
+    Returns:
+    - str: The corresponding WordNet part-of-speech tag.
+
+    Example:
+    >>> get_wordnet_pos('NN')
+    'n'
+
+    The function takes a Treebank part-of-speech tag as input and returns the corresponding WordNet
+    part-of-speech tag. It can be used to convert part-of-speech tags from Treebank format (used in
+    NLTK, for example) to WordNet format.
+
+    The mapping of Treebank tags to WordNet tags is as follows:
+    - 'N' (Noun) -> 'n'
+    - 'J' (Adjective) -> 'a'
+    - 'V' (Verb) -> 'v'
+    - 'R' (Adverb) -> 'r'
+    - All other cases default to 'n' (Noun).
+
+    Note that the returned WordNet tag is a single character string.
+
+    Please refer to the NLTK documentation for more information about part-of-speech tagging and WordNet.
+    """
+    if treebank_tag.startswith("N"):
+        return wordnet.NOUN
+    elif treebank_tag.startswith("J"):
+        return wordnet.ADJ
+    elif treebank_tag.startswith("V"):
+        return wordnet.VERB
+    elif treebank_tag.startswith("R"):
+        return wordnet.ADV
+    else:
+        return wordnet.NOUN
+
+class LemmTokenizer:
+    """
+    Tokenize and lemmatize text using NLTK's WordNetLemmatizer.
+
+    Usage:
+    tokenizer = LemmTokenizer()
+    tokens = tokenizer("Example sentence")
+
+    The LemmTokenizer class tokenizes and lemmatizes text using NLTK's WordNetLemmatizer. It provides a callable
+    object, allowing it to be used as a function for tokenization and lemmatization.
+
+    Methods:
+    - __init__(): Initialize the LemmTokenizer object and create an instance of WordNetLemmatizer.
+    - __call__(doc): Tokenize and lemmatize the input text.
+
+    Example:
+    >>> tokenizer = LemmTokenizer()
+    >>> tokens = tokenizer("I am running in the park")
+    >>> print(tokens)
+    ['I', 'be', 'run', 'in', 'the', 'park']
+
+    Note: This class requires NLTK and its dependencies to be installed.
+
+    Please refer to the NLTK documentation for more information on tokenization, part-of-speech tagging, and lemmatization.
+    """
+
+    def __init__(self):
+        """
+        Initialize the LemmTokenizer object and create an instance of WordNetLemmatizer.
+        """
+        self.wnl = WordNetLemmatizer()
+
+    def __call__(self, doc):
+        """
+        Tokenize and lemmatize the input text.
+
+        Parameters:
+        - doc (str): The text to be tokenized and lemmatized.
+
+        Returns:
+        - list: The list of lemmatized tokens.
+
+        The __call__ method tokenizes the input text using word_tokenize and performs part-of-speech tagging using pos_tag.
+        It then lemmatizes each token based on its part-of-speech tag using the WordNetLemmatizer and get_wordnet_pos functions.
+        The resulting lemmatized tokens are returned as a list.
+        """
+        tokens = word_tokenize(doc)
+        tokens_tags = pos_tag(tokens)
+        return [self.wnl.lemmatize(word, pos=get_wordnet_pos(tag)) for word, tag in tokens_tags]
