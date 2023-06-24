@@ -1,33 +1,33 @@
 import os
+import scipy
 import torch
-import numpy as np
-import pandas as pd
-import librosa as lr
-from PIL import Image
 import sklearn
 import xgboost
 import catboost
 import lightgbm
-from nltk.tag import pos_tag
-from nltk.corpus import stopwords, wordnet
-from sklearn.feature_extraction.text import TfidfVectorizer
-from nltk.tokenize import word_tokenize
-from nltk.stem import WordNetLemmatizer
-import scipy
+import numpy as np
+import pandas as pd
+import librosa as lr
+from PIL import Image
 import noisereduce as nr
 from tqdm.auto import tqdm
 import moviepy.editor as mp
 from scipy.io import wavfile
 import librosa.display as ld
+from nltk.tag import pos_tag
 from sklearn.metrics import *
 import matplotlib.pyplot as plt
 from torch.utils.data import Dataset
+from nltk.stem import WordNetLemmatizer
+from nltk.tokenize import word_tokenize
 from timeit import default_timer as Timer
+from nltk.corpus import stopwords, wordnet
 import torchvision.transforms as transforms
 from torchvision.datasets import ImageFolder
-from torch.utils.data import DataLoader, random_split
-from sklearn.utils.class_weight import compute_sample_weight
 from sklearn.model_selection import GridSearchCV
+from torch.utils.data import DataLoader, random_split
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.utils.class_weight import compute_sample_weight
 
 def build_spectogram(audio_path, plot_path, bar = False):
     """
@@ -380,57 +380,64 @@ def balanced_log_loss(y_true, y_pred, x_test):
     balanced_log_loss = log_loss(y_true, y_pred, sample_weight=sample_weights)
     return balanced_log_loss
 
-def compare_performance(models:dict, x_test:np.ndarray, y_test:np.ndarray):
+def compare_performance(models:dict, x_test:np.ndarray, y_test:np.ndarray, num_categories:int = None):
     """
-    Compare the performance of multiple models on test data.
+    Compare the performance of machine learning models on a test dataset.
 
     Parameters:
-        models (dict): A dictionary of model names as keys and corresponding trained models as values.
-        x_test (np.ndarray): Test data for evaluation.
-        y_test (np.ndarray): True labels for the test data.
+    - models (dict): A dictionary of machine learning models, where the keys are model names and values are the models.
+    - x_test (np.ndarray): Test dataset features.
+    - y_test (np.ndarray): Test dataset labels.
+    - num_categories (int, optional): The number of categories/classes in the dataset. If not provided, it will be determined based on the unique values in y_test.
 
     Returns:
-        pd.DataFrame: A DataFrame containing the performance metrics (accuracy, precision, recall, f1-score and balanced log loss) for each model.
+    - results (pd.DataFrame): A DataFrame containing the performance metrics of the models, including accuracy, precision, recall, and F1-score for each category.
+
+    Note:
+    - The models should have a `predict` method compatible with scikit-learn's classifier interface.
 
     """
     names = []
     accuracy = []
     f1 = {}
-    f1[0] = []
-    f1[1] = []
     recall = {}
-    recall[0] = []
-    recall[1] = []
     precision = {}
-    precision[0] = []
-    precision[1] = []
-    loss = []
-    results = pd.DataFrame(columns=['Name', 'Accuracy', 'Precision_0', 'Precision_1', 'Recall_0', 'Recall_1', 'f1-score_0', 'f1-score_1'])
+
+    if num_categories == None:
+      num_categories = len(np.unique(y_test))
+
+    for i in range(num_categories):
+       precision[i]= []
+       recall[i] = []
+       f1[i] = []
+
+    results = pd.DataFrame(columns=['Name', 'Accuracy'])
+
     for key,value in models.items():
         names.append(key)
-
+        preds = value.predict(x_test)
+        f = f1_score(y_test, preds, average=None)
+        r = recall_score(y_test, preds, average=None)
+        p = precision_score(y_test, preds, average=None)
         accuracy.append(round(accuracy_score(y_test, value.predict(x_test)), 3))
 
-        f1[0].append(round(f1_score(y_test, value.predict(x_test), average=None)[0], 3))
-        f1[1].append(round(f1_score(y_test, value.predict(x_test), average=None)[1], 3))
-
-        recall[0].append(round(recall_score(y_test, value.predict(x_test), average=None)[0], 3))
-        recall[1].append(round(recall_score(y_test, value.predict(x_test), average=None)[1], 3))
-
-        precision[0].append(round(precision_score(y_test, value.predict(x_test), average=None)[0], 3))
-        precision[1].append(round(precision_score(y_test, value.predict(x_test), average=None)[1], 3))
+        for i in range(num_categories):
+          f1[i].append(round(f[i], 3))
+          recall[i].append(round(r[i], 3))
+          precision[i].append(round(p[i], 3))
 
     results['Name'] = names
     results['Accuracy'] = accuracy
-    results['Precision_0'] = precision[0]
-    results['Precision_1'] = precision[1]
-    results['Recall_0'] = recall[0]
-    results['Recall_1'] = recall[1]
-    results['f1-score_0'] = f1[0]
-    results['f1-score_1'] = f1[1]
+    for i in range(num_categories):
+      results[f'Precision_{i}'] = precision[i]
+       
+    for i in range(num_categories):
+      results[f'Recall_{i}'] = recall[i]
+       
+    for i in range(num_categories):
+      results[f'f1-score_{i}'] = f1[i]
     
-    return results
-  
+    return results 
 
 LogisticRegression_param_grid = [
     {
@@ -690,7 +697,10 @@ def BestParam_search(models:dict, x, y):
 
     elif isinstance(model, sklearn.ensemble._hist_gradient_boosting.gradient_boosting.HistGradientBoostingClassifier):
       grid_search = GridSearchCV(model, HistGradientBoost_param_grid, cv=5, scoring='accuracy')
-      grid_search.fit(x.toarray(),y)
+      if isinstance(x, scipy.sparse._csr.csr_matrix):
+        grid_search.fit(x.toarray(),y)
+      else:
+         grid_search.fit(x,y)
       print(f"For Model: {key}")
       print("Best hyperparameters: ", grid_search.best_params_)
       print("Best score: ", grid_search.best_score_)
@@ -787,3 +797,30 @@ class LemmTokenizer:
         tokens = word_tokenize(doc)
         tokens_tags = pos_tag(tokens)
         return [self.wnl.lemmatize(word, pos=get_wordnet_pos(tag)) for word, tag in tokens_tags]
+
+def train_MLmodels(models:dict, X_train, y_train):
+    """
+    Train multiple ML models.
+
+    Parameters:
+    - models (list): A list of ML models.
+    - X_train (array-like): Training data features.
+    - y_train (array-like): Training data labels.
+
+    Returns:
+    - list: A list of trained models.
+
+    The function trains each model in the input list using the provided training data.
+    It iterates over the models, fits each model to the training data, and stores the trained models in a list.
+    The list of trained models is returned as the output.
+    """
+    trained_models = {}
+
+    for key,model in models.items():
+        if (isinstance(model, (sklearn.naive_bayes.MultinomialNB, sklearn.naive_bayes.GaussianNB, sklearn.ensemble._hist_gradient_boosting.gradient_boosting.HistGradientBoostingClassifier)) and isinstance(X_train, scipy.sparse._csr.csr_matrix)):
+           model.fit(X_train.toarray(), y_train)
+        else:
+          model.fit(X_train, y_train)
+        print(f"{key} Model Trained")
+        trained_models[key]= model
+    return trained_models
