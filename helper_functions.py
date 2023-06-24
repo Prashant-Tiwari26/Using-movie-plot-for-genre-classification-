@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 import librosa as lr
 from PIL import Image
+import seaborn as sns
 import noisereduce as nr
 from tqdm.auto import tqdm
 import moviepy.editor as mp
@@ -824,3 +825,43 @@ def train_MLmodels(models:dict, X_train, y_train):
         print(f"{key} Model Trained")
         trained_models[key]= model
     return trained_models
+
+def compare_heatmaps(models:dict, x_test:np.ndarray, y_test:np.ndarray):
+    """
+    Creates a grid of heatmaps comparing the confusion matrices of multiple models.
+
+    Args:
+        models (dict): A dictionary of models where the keys represent the model names
+            and the values represent the model objects.
+        x_test (np.ndarray): The test input data.
+        y_test (np.ndarray): The test target data.
+
+    Returns:
+        None: Displays the grid of heatmaps comparing the confusion matrices of the models.
+
+    Raises:
+        ValueError: If `models` is an empty dictionary.
+    """
+    if not models:
+        raise ValueError("The `models` dictionary must not be empty.")
+    data = []
+    names = []
+    for key, model in models.items():
+        data.append(confusion_matrix(y_test, model.predict(x_test)))
+        names.append(key)
+    num_plots = len(data)
+    num_cols = 3
+    num_rows = (num_plots - 1) // num_cols + 1
+    fig, axes = plt.subplots(num_rows, num_cols, figsize=(16, num_rows*5.5))
+    fig.tight_layout(pad=3)
+
+    for i, ax in enumerate(axes.flat):
+        if i < num_plots:
+            sns.heatmap(data[i], cmap="Reds", annot=True, cbar=False, square=True, fmt='d', ax=ax)
+            ax.set_title(names[i])
+            ax.set_xlabel("Predicted")
+            ax.set_ylabel("Actual")
+        else:
+            fig.delaxes(ax)
+
+    plt.show()
