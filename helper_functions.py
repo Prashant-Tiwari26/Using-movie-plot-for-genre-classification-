@@ -592,7 +592,7 @@ def fix_y(y):
       unique[i] = unique[i-1]+1
   return fixed_y
 
-def BestParam_search(models:dict, x, y):
+def BestParam_search(models:dict, x, y, num_cores:int = 3):
   """
     Perform hyperparameter tuning using grid search for different models and print the best parameters and scores.
 
@@ -604,6 +604,8 @@ def BestParam_search(models:dict, x, y):
         The feature matrix or input data.
     y : array-like
         The target variable or output data.
+    num_cores : int
+        Number of cores for parallel processing, default = 3.
 
     Returns:
     --------
@@ -634,77 +636,97 @@ def BestParam_search(models:dict, x, y):
   y = fix_y(y)
   for key,model in models.items():
     if isinstance(model, sklearn.linear_model._logistic.LogisticRegression):
-      grid_search = GridSearchCV(model, LogisticRegression_param_grid, cv=5, scoring='accuracy')
+      print(f"Starting Grid Search for Model: {key}")
+      grid_search = GridSearchCV(model, LogisticRegression_param_grid, cv=5, scoring='accuracy', n_jobs=num_cores)
       grid_search.fit(x,y)
-      print(f"For Model: {key}")
+      print("Search Finished")
       print("Best hyperparameters: ", grid_search.best_params_)
       print("Best score: ", grid_search.best_score_)
+      print("------------------------")
 
     elif isinstance(model, sklearn.tree._classes.DecisionTreeClassifier):
-      grid_search = GridSearchCV(model, DecisionTree_param_grid, cv=5, scoring='accuracy')
+      print(f"Starting Grid Search for Model: {key}")
+      grid_search = GridSearchCV(model, DecisionTree_param_grid, cv=5, scoring='accuracy', n_jobs=num_cores)
       grid_search.fit(x,y)
-      print(f"For Model: {key}")
+      print("Search Finished")
       print("Best hyperparameters: ", grid_search.best_params_)
       print("Best score: ", grid_search.best_score_)
+      print("------------------------")
 
     elif isinstance(model, sklearn.svm._classes.SVC):
-      grid_search = GridSearchCV(model, SVC_param_grid, cv=5, scoring='accuracy')
+      print(f"Starting Grid Search for Model: {key}")
+      grid_search = GridSearchCV(model, SVC_param_grid, cv=5, scoring='accuracy', n_jobs=num_cores)
       grid_search.fit(x,y)
-      print(f"For Model: {key}")
+      print("Search Finished")
       print("Best hyperparameters: ", grid_search.best_params_)
       print("Best score: ", grid_search.best_score_)
+      print("------------------------")
 
     elif isinstance(model, sklearn.neighbors._classification.KNeighborsClassifier):
-      grid_search = GridSearchCV(model, KNN_param_grid, cv=5, scoring='accuracy')
+      print(f"Starting Grid Search for Model: {key}")
+      grid_search = GridSearchCV(model, KNN_param_grid, cv=5, scoring='accuracy', n_jobs=num_cores)
       grid_search.fit(x,y)
-      print(f"For Model: {key}")
+      print("Search Finished")
       print("Best hyperparameters: ", grid_search.best_params_)
       print("Best score: ", grid_search.best_score_)
+      print("------------------------")
 
     elif isinstance(model, lightgbm.sklearn.LGBMClassifier):
-      grid_search = GridSearchCV(model, LGBMClassifier_param_grid, cv=5, scoring='accuracy')
+      print(f"Starting Grid Search for Model: {key}")
+      grid_search = GridSearchCV(model, LGBMClassifier_param_grid, cv=5, scoring='accuracy', n_jobs=num_cores)
       grid_search.fit(x,y)
-      print(f"For Model: {key}")
+      print("Search Finished")
       print("Best hyperparameters: ", grid_search.best_params_)
       print("Best score: ", grid_search.best_score_)
+      print("------------------------")
 
     elif isinstance(model, xgboost.sklearn.XGBClassifier):
-      grid_search = GridSearchCV(model, XGBoostClassifier_param_grid, cv=5, scoring='accuracy')
+      print(f"Starting Grid Search for Model: {key}")
+      grid_search = GridSearchCV(model, XGBoostClassifier_param_grid, cv=5, scoring='accuracy', n_jobs=num_cores)
       grid_search.fit(x,y)
-      print(f"For Model: {key}")
+      print("Search Finished")
       print("Best hyperparameters: ", grid_search.best_params_)
       print("Best score: ", grid_search.best_score_)
+      print("------------------------")
 
     elif isinstance(model, sklearn.ensemble._weight_boosting.AdaBoostClassifier):
-      grid_search = GridSearchCV(model, AdaBoost_param_grid, cv=5, scoring='accuracy')
+      print(f"Starting Grid Search for Model: {key}")
+      grid_search = GridSearchCV(model, AdaBoost_param_grid, cv=5, scoring='accuracy', n_jobs=num_cores)
       grid_search.fit(x,y)
-      print(f"For Model: {key}")
+      print("Search Finished")
       print("Best hyperparameters: ", grid_search.best_params_)
       print("Best score: ", grid_search.best_score_)
+      print("------------------------")
 
     elif isinstance(model, sklearn.ensemble._gb.GradientBoostingClassifier):
-      grid_search = GridSearchCV(model, GradientBoost_param_grid, cv=5, scoring='accuracy')
+      print(f"Starting Grid Search for Model: {key}")
+      grid_search = GridSearchCV(model, GradientBoost_param_grid, cv=5, scoring='accuracy', n_jobs=num_cores)
       grid_search.fit(x,y)
-      print(f"For Model: {key}")
+      print("Search Finished")
       print("Best hyperparameters: ", grid_search.best_params_)
       print("Best score: ", grid_search.best_score_)
+      print("------------------------")
 
     elif isinstance(model, sklearn.ensemble._forest.RandomForestClassifier):
-      grid_search = GridSearchCV(model, RandomForest_param_grid, cv=5, scoring='accuracy')
+      print(f"Starting Grid Search for Model: {key}")
+      grid_search = GridSearchCV(model, RandomForest_param_grid, cv=5, scoring='accuracy', n_jobs=num_cores)
       grid_search.fit(x,y)
-      print(f"For Model: {key}")
+      print("Search Finished")
       print("Best hyperparameters: ", grid_search.best_params_)
       print("Best score: ", grid_search.best_score_)
+      print("------------------------")
 
     elif isinstance(model, sklearn.ensemble._hist_gradient_boosting.gradient_boosting.HistGradientBoostingClassifier):
-      grid_search = GridSearchCV(model, HistGradientBoost_param_grid, cv=5, scoring='accuracy')
+      grid_search = GridSearchCV(model, HistGradientBoost_param_grid, cv=5, scoring='accuracy', n_jobs=num_cores)
+      print(f"Starting Grid Search for Model: {key}")
       if isinstance(x, scipy.sparse._csr.csr_matrix):
         grid_search.fit(x.toarray(),y)
       else:
          grid_search.fit(x,y)
-      print(f"For Model: {key}")
+      print("Search Finished")
       print("Best hyperparameters: ", grid_search.best_params_)
       print("Best score: ", grid_search.best_score_)
+      print("------------------------")
 
     else:
       continue
@@ -818,11 +840,12 @@ def train_MLmodels(models:dict, X_train, y_train):
     trained_models = {}
 
     for key,model in models.items():
+        print(f"Training {key}")
         if (isinstance(model, (sklearn.naive_bayes.MultinomialNB, sklearn.naive_bayes.GaussianNB, sklearn.ensemble._hist_gradient_boosting.gradient_boosting.HistGradientBoostingClassifier)) and isinstance(X_train, scipy.sparse._csr.csr_matrix)):
            model.fit(X_train.toarray(), y_train)
         else:
           model.fit(X_train, y_train)
-        print(f"{key} Model Trained")
+        print(f"{key} Model Trained\n------------------")
         trained_models[key]= model
     return trained_models
 
