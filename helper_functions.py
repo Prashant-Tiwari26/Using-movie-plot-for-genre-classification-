@@ -1,4 +1,5 @@
 import os
+from typing import Any
 import scipy
 import torch
 import sklearn
@@ -13,20 +14,30 @@ import seaborn as sns
 import noisereduce as nr
 from tqdm.auto import tqdm
 import moviepy.editor as mp
+from sklearn.svm import SVC
 from scipy.io import wavfile
 import librosa.display as ld
 from nltk.tag import pos_tag
 from sklearn.metrics import *
+from sklearn.ensemble import *
 import matplotlib.pyplot as plt
+from xgboost import XGBClassifier
+from lightgbm import LGBMClassifier
 from torch.utils.data import Dataset
+from catboost import CatBoostClassifier
 from nltk.stem import WordNetLemmatizer
 from nltk.tokenize import word_tokenize
 from timeit import default_timer as Timer
 from nltk.corpus import stopwords, wordnet
 import torchvision.transforms as transforms
 from torchvision.datasets import ImageFolder
+from sklearn.tree import DecisionTreeClassifier
 from sklearn.model_selection import GridSearchCV
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, random_split
+from sklearn.naive_bayes import MultinomialNB, GaussianNB
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.utils.class_weight import compute_sample_weight
 
@@ -888,3 +899,352 @@ def compare_heatmaps(models:dict, x_test:np.ndarray, y_test:np.ndarray):
             fig.delaxes(ax)
 
     plt.show()
+
+lr = LogisticRegression()
+tree = DecisionTreeClassifier()
+knn = KNeighborsClassifier()
+svc = SVC()
+mnb = MultinomialNB()
+gnb = GaussianNB()
+xgb = XGBClassifier()
+catboost = CatBoostClassifier()
+lgbm = LGBMClassifier()
+adaboost = AdaBoostClassifier()
+gradient_boost = GradientBoostingClassifier()
+forest = RandomForestClassifier()
+hboost = HistGradientBoostingClassifier()
+
+models = {
+  'Logistic Regression': lr,
+  'Decision Tree': tree,
+  'KNN': knn,
+  'Multinomial Naive Bayes': mnb,
+  'Gaussian Naive Bayes': gnb,
+  'SVC': svc,
+  'AdaBoost': adaboost,
+  'Gradient Boosting': gradient_boost,
+  'Random Forest': forest,
+  'XGBoost': xgb,
+  'CatBoost': catboost,
+  'LightGBM': lgbm
+}
+
+class Train_Classifiers:
+    """
+        Initialize the Train_Classifiers object.
+
+        Parameters
+        ----------
+        x : array-like
+            The input features for training the models.
+        y : array-like
+            The target variable for training the models.
+        models : dict, optional
+            A dictionary containing the models to train. The keys represent the model names, and the values are
+            the model objects. Defaults to `models`.
+        test_size : int, optional
+            The proportion of the dataset to use as the test set. Defaults to 0.2.
+    """
+    def __init__(self, x, y, models:dict=models, test_size:int=0.2) -> None:
+        self.x = x
+        self.y = fix_y(y)
+        self.x_train, self.x_test, self.y_train, self.y_test = train_test_split(self.x, self.y, test_size=test_size)
+        self.models = models
+    
+    def fit(self):
+        """
+        Train the models using the provided training data.
+        """
+        self.trained_models = {}
+        for key, model in self.models.items():
+            print(f"Training {key}")
+            if (isinstance(model, (sklearn.naive_bayes.MultinomialNB, sklearn.naive_bayes.GaussianNB, sklearn.ensemble._hist_gradient_boosting.gradient_boosting.HistGradientBoostingClassifier)) and isinstance(self.x_train, scipy.sparse._csr.csr_matrix)):
+                model.fit(self.x_train.toarray(), self.y_train)
+            else:
+                model.fit(self.x_train, self.y_train)
+            print(f"{key} Model Trained\n------------------")
+            self.trained_models[key]= model
+    
+    def score(self):
+        """
+        Evaluate the performance of the trained models on the test set.
+        """
+        for key, model in self.trained_models.items():
+            print(f"Training {key}")
+            if (isinstance(model, (sklearn.naive_bayes.MultinomialNB, sklearn.naive_bayes.GaussianNB, sklearn.ensemble._hist_gradient_boosting.gradient_boosting.HistGradientBoostingClassifier)) and isinstance(self.x_test, scipy.sparse._csr.csr_matrix)):
+                print(f"{key}: {model.score(self.x_test.toarray())}")
+            else:
+                print(f"{key}: {model.score(self.x_test)}")
+
+    def get_trained_models(self):
+        """
+        Get the dictionary of trained models.
+
+        Returns
+        -------
+        dict
+            A dictionary containing the trained models.
+        """
+        return self.trained_models
+    
+    def get_single_model(self,key):
+        """
+        Get a specific trained model.
+
+        Parameters
+        ----------
+        key : str
+            The key representing the model.
+
+        Returns
+        -------
+        object
+            The trained model.
+        """
+        return self.trained_models[key]
+    
+    def model_performance(self, key):
+        """
+        Calculate and display the performance metrics of a specific model.
+
+        Parameters
+        ----------
+        key : str
+            The key representing the model.
+        Returns:
+        --------
+        None
+
+        Prints:
+        -------
+        Model Performance:
+            Classification report containing precision, recall, F1-score, and support for each class.
+        Accuracy:
+            The accuracy of the model on the test data.
+        Confusion Matrix:
+            A plot of the confusion matrix, showing the true and predicted labels for the test data.
+        """
+        if (isinstance(self.trained_models[key], (sklearn.naive_bayes.MultinomialNB, sklearn.naive_bayes.GaussianNB, sklearn.ensemble._hist_gradient_boosting.gradient_boosting.HistGradientBoostingClassifier)) and isinstance(self.x_train, scipy.sparse._csr.csr_matrix)):
+            preds = self.trained_models[key].predict(self.x_test.toarray())
+        else:
+            preds = self.trained_models[key].predict(self.x_test)
+        accuracy = accuracy_score(self.y_test, preds)
+        report = classification_report(self.y_test, preds)
+        print("\t\t\t\t\tModel Performance")
+        print(report)
+        print(f"Accuracy = {round(accuracy*100, 2)}%")
+        matrix = confusion_matrix(self.y_test, preds)
+        matrix_disp = ConfusionMatrixDisplay(matrix)
+        matrix_disp.plot(cmap='Blues')
+        plt.show()
+
+    def Compare_ConfusionMatrices(self):
+        """
+        Creates a grid of heatmaps comparing the confusion matrices of multiple models.
+
+        Returns:
+            None: Displays the grid of heatmaps comparing the confusion matrices of the models.
+        """
+        data = []
+        names = []
+        for key, model in self.trained_models.items():
+            if (isinstance(model, (sklearn.naive_bayes.MultinomialNB, sklearn.naive_bayes.GaussianNB, sklearn.ensemble._hist_gradient_boosting.gradient_boosting.HistGradientBoostingClassifier)) and isinstance(self.x_train, scipy.sparse._csr.csr_matrix)):
+                data.append(confusion_matrix(self.y_test, model.predict(self.x_test.toarray())))
+            else:
+                data.append(confusion_matrix(self.y_test, model.predict(self.x_test)))
+            names.append(key)
+        num_plots = len(data)
+        num_cols = 3
+        num_rows = (num_plots - 1) // num_cols + 1
+        fig, axes = plt.subplots(num_rows, num_cols, figsize=(16, num_rows*5.5))
+        fig.tight_layout(pad=3)
+
+        for i, ax in enumerate(axes.flat):
+            if i < num_plots:
+                sns.heatmap(data[i], cmap="Reds", annot=True, cbar=False, square=True, fmt='d', ax=ax)
+                ax.set_title(names[i])
+                ax.set_xlabel("Predicted")
+                ax.set_ylabel("Actual")
+            else:
+                fig.delaxes(ax)
+
+        plt.show()
+
+    def Compare_Performance(self):
+        """
+        Compare the performance metrics (accuracy, precision, recall, f1-score) of all trained models.
+
+        Returns:
+        - results (pd.DataFrame): A DataFrame containing the performance metrics of the models, including accuracy, precision, recall, and F1-score for each category.
+
+        Note:
+        - The models should have a `predict` method compatible with scikit-learn's classifier interface.
+
+        """
+        names = []
+        accuracy = []
+        f1 = {}
+        recall = {}
+        precision = {}
+
+        num_categories = len(np.unique(self.y_test))
+
+        for i in range(num_categories):
+            precision[i]= []
+            recall[i] = []
+            f1[i] = []
+
+        self.results = pd.DataFrame(columns=['Name', 'Accuracy'])
+
+        for key,value in self.trained_models.items():
+            names.append(key)
+            preds = value.predict(self.x_test)
+            f = f1_score(self.y_test, preds, average=None)
+            r = recall_score(self.y_test, preds, average=None)
+            p = precision_score(self.y_test, preds, average=None)
+            accuracy.append(round(accuracy_score(self.y_test, preds), 3))
+
+            for i in range(num_categories):
+                f1[i].append(round(f[i], 3))
+                recall[i].append(round(r[i], 3))
+                precision[i].append(round(p[i], 3))
+
+        self.results['Name'] = names
+        self.results['Accuracy'] = accuracy
+        for i in range(num_categories):
+            self.results[f'Precision_{i}'] = precision[i]
+        
+        for i in range(num_categories):
+            self.results[f'Recall_{i}'] = recall[i]
+        
+        for i in range(num_categories):
+            self.results[f'f1-score_{i}'] = f1[i]
+        
+        return self.results
+
+    def Best_ParamSearch(self, num_cores:int = 1):
+        """
+        Perform a grid search to find the best hyperparameters for each model in the class.
+
+        Parameters
+        ----------
+        num_cores : int, optional
+            The number of CPU cores to use during the grid search. Defaults to 1.
+
+        Notes
+        -----
+        This method performs a grid search with cross-validation for each model in the class.
+        It searches for the best hyperparameters using the provided `model_param_grid` dictionaries
+        specific to each model type. The best hyperparameters and corresponding best scores are
+        printed for each model.
+
+        For the models with sparse input (`HistGradientBoostingClassifier` and certain Naive Bayes models),
+        the grid search is performed on the dense representation of the input data if it is initially sparse.
+
+        The printed information includes the model name, the start and finish of the grid search, the
+        best hyperparameters found, and the corresponding best score.
+
+        Models that are not recognized or supported will be skipped.
+
+        Examples
+        --------
+        # Perform a grid search for the best hyperparameters
+        classifier = Train_Classifiers(x_train, y_train, models)
+        classifier.Best_ParamSearch(num_cores=2)
+        """
+        for key,model in self.models.items():
+            if isinstance(model, sklearn.linear_model._logistic.LogisticRegression):
+                print(f"Started Grid Search for Model: {key}")
+                grid_search = GridSearchCV(model, LogisticRegression_param_grid, cv=5, scoring='accuracy', n_jobs=num_cores)
+                grid_search.fit(self.x,self.y)
+                print("Search Finished")
+                print("Best hyperparameters: ", grid_search.best_params_)
+                print("Best score: ", grid_search.best_score_)
+                print("------------------------")
+
+            elif isinstance(model, sklearn.tree._classes.DecisionTreeClassifier):
+                print(f"Started Grid Search for Model: {key}")
+                grid_search = GridSearchCV(model, DecisionTree_param_grid, cv=5, scoring='accuracy', n_jobs=num_cores)
+                grid_search.fit(self.x,self.y)
+                print("Search Finished")
+                print("Best hyperparameters: ", grid_search.best_params_)
+                print("Best score: ", grid_search.best_score_)
+                print("------------------------")
+
+            elif isinstance(model, sklearn.svm._classes.SVC):
+                print(f"Started Grid Search for Model: {key}")
+                grid_search = GridSearchCV(model, SVC_param_grid, cv=5, scoring='accuracy', n_jobs=num_cores)
+                grid_search.fit(self.x,self.y)
+                print("Search Finished")
+                print("Best hyperparameters: ", grid_search.best_params_)
+                print("Best score: ", grid_search.best_score_)
+                print("------------------------")
+
+            elif isinstance(model, sklearn.neighbors._classification.KNeighborsClassifier):
+                print(f"Started Grid Search for Model: {key}")
+                grid_search = GridSearchCV(model, KNN_param_grid, cv=5, scoring='accuracy', n_jobs=num_cores)
+                grid_search.fit(self.x,self.y)
+                print("Search Finished")
+                print("Best hyperparameters: ", grid_search.best_params_)
+                print("Best score: ", grid_search.best_score_)
+                print("------------------------")
+
+            elif isinstance(model, lightgbm.sklearn.LGBMClassifier):
+                print(f"Started Grid Search for Model: {key}")
+                grid_search = GridSearchCV(model, LGBMClassifier_param_grid, cv=5, scoring='accuracy', n_jobs=num_cores)
+                grid_search.fit(self.x,self.y)
+                print("Search Finished")
+                print("Best hyperparameters: ", grid_search.best_params_)
+                print("Best score: ", grid_search.best_score_)
+                print("------------------------")
+
+            elif isinstance(model, xgboost.sklearn.XGBClassifier):
+                print(f"Started Grid Search for Model: {key}")
+                grid_search = GridSearchCV(model, XGBoostClassifier_param_grid, cv=5, scoring='accuracy', n_jobs=num_cores)
+                grid_search.fit(self.x,self.y)
+                print("Search Finished")
+                print("Best hyperparameters: ", grid_search.best_params_)
+                print("Best score: ", grid_search.best_score_)
+                print("------------------------")
+
+            elif isinstance(model, sklearn.ensemble._weight_boosting.AdaBoostClassifier):
+                print(f"Started Grid Search for Model: {key}")
+                grid_search = GridSearchCV(model, AdaBoost_param_grid, cv=5, scoring='accuracy', n_jobs=num_cores)
+                grid_search.fit(self.x,self.y)
+                print("Search Finished")
+                print("Best hyperparameters: ", grid_search.best_params_)
+                print("Best score: ", grid_search.best_score_)
+                print("------------------------")
+
+            elif isinstance(model, sklearn.ensemble._gb.GradientBoostingClassifier):
+                print(f"Started Grid Search for Model: {key}")
+                grid_search = GridSearchCV(model, GradientBoost_param_grid, cv=5, scoring='accuracy', n_jobs=num_cores)
+                grid_search.fit(self.x,self.y)
+                print("Search Finished")
+                print("Best hyperparameters: ", grid_search.best_params_)
+                print("Best score: ", grid_search.best_score_)
+                print("------------------------")
+
+            elif isinstance(model, sklearn.ensemble._forest.RandomForestClassifier):
+                print(f"Started Grid Search for Model: {key}")
+                grid_search = GridSearchCV(model, RandomForest_param_grid, cv=5, scoring='accuracy', n_jobs=num_cores)
+                grid_search.fit(self.x,self.y)
+                print("Search Finished")
+                print("Best hyperparameters: ", grid_search.best_params_)
+                print("Best score: ", grid_search.best_score_)
+                print("------------------------")
+
+            elif isinstance(model, (sklearn.naive_bayes.MultinomialNB, sklearn.naive_bayes.GaussianNB, sklearn.ensemble._hist_gradient_boosting.gradient_boosting.HistGradientBoostingClassifier)):
+                grid_search = GridSearchCV(model, HistGradientBoost_param_grid, cv=5, scoring='accuracy', n_jobs=num_cores)
+                print(f"Started Grid Search for Model: {key}")
+                if isinstance(self.x,self. scipy.sparse._csr.csr_matrix):
+                    grid_search.fit(self.x.toarray(),self.y)
+                else:
+                    grid_search.fit(self.x,self.y)
+                print("Search Finished")
+                print("Best hyperparameters: ", grid_search.best_params_)
+                print("Best score: ", grid_search.best_score_)
+                print("------------------------")
+
+            else:
+                continue
