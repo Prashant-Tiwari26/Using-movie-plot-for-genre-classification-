@@ -972,9 +972,9 @@ class Train_Classifiers:
         for key, model in self.trained_models.items():
             print(f"Training {key}")
             if (isinstance(model, (sklearn.naive_bayes.MultinomialNB, sklearn.naive_bayes.GaussianNB, sklearn.ensemble._hist_gradient_boosting.gradient_boosting.HistGradientBoostingClassifier)) and isinstance(self.x_test, scipy.sparse._csr.csr_matrix)):
-                print(f"{key}: {model.score(self.x_test.toarray())}")
+                print(f"{key}: {model.score(self.x_test.toarray(), self.y_test)}")
             else:
-                print(f"{key}: {model.score(self.x_test)}")
+                print(f"{key}: {model.score(self.x_test, self.y_test)}")
 
     def get_trained_models(self):
         """
