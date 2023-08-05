@@ -1,5 +1,4 @@
 import os
-from typing import Any
 import scipy
 import torch
 import sklearn
@@ -11,6 +10,8 @@ import pandas as pd
 import librosa as lr
 from PIL import Image
 import seaborn as sns
+import transformers
+from typing import Any
 import noisereduce as nr
 from tqdm.auto import tqdm
 import moviepy.editor as mp
@@ -40,6 +41,7 @@ from torch.utils.data import DataLoader, random_split
 from sklearn.naive_bayes import MultinomialNB, GaussianNB
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.utils.class_weight import compute_sample_weight
+from datasets import Dataset as dt
 
 def build_spectogram(audio_path, plot_path, bar = False):
     """
@@ -119,7 +121,7 @@ def performance(model, x_test, y_test):
     print(f"Accuracy = {round(accuracy*100, 2)}%")
     matrix = confusion_matrix(y_test, preds)
     matrix_disp = ConfusionMatrixDisplay(matrix)
-    matrix_disp.plot(cmap='Blues')
+    matrix_disp.plot(cmap='Reds')
     plt.show()
     
 class CustomDataset_CSVlabels(Dataset):
@@ -727,6 +729,15 @@ def BestParam_search(models:dict, x, y, num_cores:int = 3):
       print("Best score: ", grid_search.best_score_)
       print("------------------------")
 
+    elif isinstance(model, catboost.core.CatBoostClassifier):
+      print(f"Starting Grid Search for Model: {key}")
+      grid_search = GridSearchCV(model, CatBoostClassifier_param_grid, cv=5, scoring='accuracy', n_jobs=num_cores)
+      grid_search.fit(x,y)
+      print("Search Finished")
+      print("Best hyperparameters: ", grid_search.best_params_)
+      print("Best score: ", grid_search.best_score_)
+      print("------------------------")
+
     elif isinstance(model, sklearn.ensemble._hist_gradient_boosting.gradient_boosting.HistGradientBoostingClassifier):
       grid_search = GridSearchCV(model, HistGradientBoost_param_grid, cv=5, scoring='accuracy', n_jobs=num_cores)
       print(f"Starting Grid Search for Model: {key}")
@@ -900,33 +911,20 @@ def compare_heatmaps(models:dict, x_test:np.ndarray, y_test:np.ndarray):
 
     plt.show()
 
-lr = LogisticRegression()
-tree = DecisionTreeClassifier()
-knn = KNeighborsClassifier()
-svc = SVC()
-mnb = MultinomialNB()
-gnb = GaussianNB()
-xgb = XGBClassifier()
-catboost = CatBoostClassifier()
-lgbm = LGBMClassifier()
-adaboost = AdaBoostClassifier()
-gradient_boost = GradientBoostingClassifier()
-forest = RandomForestClassifier()
-hboost = HistGradientBoostingClassifier()
 
 models = {
-  'Logistic Regression': lr,
-  'Decision Tree': tree,
-  'KNN': knn,
-  'Multinomial Naive Bayes': mnb,
-  'Gaussian Naive Bayes': gnb,
-  'SVC': svc,
-  'AdaBoost': adaboost,
-  'Gradient Boosting': gradient_boost,
-  'Random Forest': forest,
-  'XGBoost': xgb,
-  'CatBoost': catboost,
-  'LightGBM': lgbm
+  'Logistic Regression': LogisticRegression(),
+  'Decision Tree': DecisionTreeClassifier(),
+  'KNN': KNeighborsClassifier(),
+  'Multinomial Naive Bayes': MultinomialNB(),
+  'Gaussian Naive Bayes': GaussianNB(),
+  'SVC': SVC(),
+  'AdaBoost': AdaBoostClassifier(),
+  'Gradient Boosting': GradientBoostingClassifier(),
+  'Random Forest': RandomForestClassifier(),
+  'XGBoost': XGBClassifier(),
+  'CatBoost': CatBoostClassifier(),
+  'LightGBM': LGBMClassifier()
 }
 
 class Train_Classifiers:
@@ -948,7 +946,7 @@ class Train_Classifiers:
     def __init__(self, x, y, models:dict=models, test_size:int=0.2) -> None:
         self.x = x
         self.y = fix_y(y)
-        self.x_train, self.x_test, self.y_train, self.y_test = train_test_split(self.x, self.y, test_size=test_size)
+        self.x_train, self.x_test, self.y_train, self.y_test = train_test_split(self.x, self.y, test_size=test_size, stratify=self.y)
         self.models = models
     
     def fit(self):
@@ -969,12 +967,14 @@ class Train_Classifiers:
         """
         Evaluate the performance of the trained models on the test set.
         """
+        self.predicts = {}
         for key, model in self.trained_models.items():
-            print(f"Training {key}")
             if (isinstance(model, (sklearn.naive_bayes.MultinomialNB, sklearn.naive_bayes.GaussianNB, sklearn.ensemble._hist_gradient_boosting.gradient_boosting.HistGradientBoostingClassifier)) and isinstance(self.x_test, scipy.sparse._csr.csr_matrix)):
-                print(f"{key}: {model.score(self.x_test.toarray(), self.y_test)}")
+                self.predicts[key] = model.predict(self.x_test.toarray())
+                print(f"{key}: {accuracy_score(self.y_test, self.predicts[key])}")
             else:
-                print(f"{key}: {model.score(self.x_test, self.y_test)}")
+                self.predicts[key] = model.predict(self.x_test)
+                print(f"{key}: {accuracy_score(self.y_test, self.predicts[key])}")
 
     def get_trained_models(self):
         """
@@ -1024,16 +1024,12 @@ class Train_Classifiers:
         Confusion Matrix:
             A plot of the confusion matrix, showing the true and predicted labels for the test data.
         """
-        if (isinstance(self.trained_models[key], (sklearn.naive_bayes.MultinomialNB, sklearn.naive_bayes.GaussianNB, sklearn.ensemble._hist_gradient_boosting.gradient_boosting.HistGradientBoostingClassifier)) and isinstance(self.x_train, scipy.sparse._csr.csr_matrix)):
-            preds = self.trained_models[key].predict(self.x_test.toarray())
-        else:
-            preds = self.trained_models[key].predict(self.x_test)
-        accuracy = accuracy_score(self.y_test, preds)
-        report = classification_report(self.y_test, preds)
+        accuracy = accuracy_score(self.y_test, self.predicts[key])
+        report = classification_report(self.y_test, self.predicts[key])
         print("\t\t\t\t\tModel Performance")
         print(report)
         print(f"Accuracy = {round(accuracy*100, 2)}%")
-        matrix = confusion_matrix(self.y_test, preds)
+        matrix = confusion_matrix(self.y_test, self.predicts[key])
         matrix_disp = ConfusionMatrixDisplay(matrix)
         matrix_disp.plot(cmap='Blues')
         plt.show()
@@ -1048,10 +1044,7 @@ class Train_Classifiers:
         data = []
         names = []
         for key, model in self.trained_models.items():
-            if (isinstance(model, (sklearn.naive_bayes.MultinomialNB, sklearn.naive_bayes.GaussianNB, sklearn.ensemble._hist_gradient_boosting.gradient_boosting.HistGradientBoostingClassifier)) and isinstance(self.x_train, scipy.sparse._csr.csr_matrix)):
-                data.append(confusion_matrix(self.y_test, model.predict(self.x_test.toarray())))
-            else:
-                data.append(confusion_matrix(self.y_test, model.predict(self.x_test)))
+            data.append(confusion_matrix(self.y_test, self.predicts[key]))
             names.append(key)
         num_plots = len(data)
         num_cols = 3
@@ -1098,11 +1091,10 @@ class Train_Classifiers:
 
         for key,value in self.trained_models.items():
             names.append(key)
-            preds = value.predict(self.x_test)
-            f = f1_score(self.y_test, preds, average=None)
-            r = recall_score(self.y_test, preds, average=None)
-            p = precision_score(self.y_test, preds, average=None)
-            accuracy.append(round(accuracy_score(self.y_test, preds), 3))
+            f = f1_score(self.y_test, self.predicts[key], average=None)
+            r = recall_score(self.y_test, self.predicts[key], average=None)
+            p = precision_score(self.y_test, self.predicts[key], average=None)
+            accuracy.append(round(accuracy_score(self.y_test, self.predicts[key]), 3))
 
             for i in range(num_categories):
                 f1[i].append(round(f[i], 3))
@@ -1248,3 +1240,168 @@ class Train_Classifiers:
 
             else:
                 continue
+
+
+
+def tfidf_preprocessing(x, y, encoder=None, remove_stopwords:bool =True, test_size:float = 0.2, stratify=False):
+    """
+    Preprocesses the input data using TF-IDF vectorization.
+
+    Args:
+        x (list or array-like): Input data.
+        y (list or array-like): Target labels.
+        encoder (optional): Encoder for the target labels. Default is None.
+        remove_stopwords (bool, optional): Flag indicating whether to remove stopwords. Default is True.
+        test_size (float, optional): The proportion of the data to use for testing. Default is 0.2.
+        stratify (bool, optional): Flag indicating whether to perform stratified splitting. Default is False.
+
+    Returns:
+        tuple: A tuple containing the preprocessed data and labels:
+            - x_train (sparse matrix): Training data after TF-IDF vectorization.
+            - x_test (sparse matrix): Testing data after TF-IDF vectorization.
+            - y_train (array-like): Training labels.
+            - y_test (array-like): Testing labels.
+
+    Raises:
+        TypeError: If `remove_stopwords` is not a boolean value.
+        ValueError: If `test_size` is not between 0 and 1 (exclusive).
+    """
+    if not isinstance(remove_stopwords, bool):
+        raise TypeError("Invalid input! Expected a boolean value.")
+    
+    if not (0 < test_size < 1):
+        raise ValueError("Invalid input! The value must be between 0 and 1 (exclusive).")
+    
+    if encoder is not None:
+        y = encoder.fit_transform(y)
+    
+    if remove_stopwords == True:
+        stop_words = set(stopwords.words('english'))
+        for i in range(len(x)):
+            tokens = word_tokenize(x[i])
+            filtered = [word for word in tokens if word not in stop_words]
+            x[i] = ' '.join(filtered)
+    
+    if stratify==True:
+        x_train, x_test, y_train, y_test = train_test_split(x,y,test_size=test_size, shuffle=True, stratify=y)
+    else:        
+        x_train, x_test, y_train, y_test = train_test_split(x,y,test_size=test_size, shuffle=True)
+
+    vectorizer = TfidfVectorizer(tokenizer=LemmTokenizer(), sublinear_tf=True)
+    x_train = vectorizer.fit_transform(x_train)
+    x_test = vectorizer.transform(x_test)
+    
+    return x_train, x_test, y_train, y_test
+
+class BERT_Embeddings:
+    """
+    A class for creating BERT embeddings from a pandas DataFrame.
+
+    Parameters:
+        data (pd.core.frame.DataFrame): The input DataFrame containing the data.
+        target_column (str): The name of the column in the DataFrame containing the target variable.
+        test_size (float, optional): The proportion of data to use for the test set. Default is 0.2.
+        model (str, optional): The BERT model to use. Default is 'distilbert-base-uncased'.
+        stratify (bool, optional): Whether to stratify the train-test split based on the target_column. Default is True.
+
+    Attributes:
+        data (dt.Frame): A datatable Frame converted from the input DataFrame.
+        target_column (str): The name of the target column.
+        model (transformers.BertModel or transformers.DistilBertModel): The BERT model used for embedding extraction.
+        tokenizer (transformers.BertTokenizer or transformers.DistilBertTokenizer): The tokenizer for the selected BERT model.
+        encoded_data (dt.Frame): The tokenized and encoded data.
+        hidden_states (dt.Frame): The extracted hidden states from the BERT model.
+        x_train (np.ndarray): Numpy array containing the hidden states for the training set.
+        y_train (np.ndarray): Numpy array containing the target values for the training set.
+        x_test (np.ndarray): Numpy array containing the hidden states for the test set.
+        y_test (np.ndarray): Numpy array containing the target values for the test set.
+
+    Methods:
+        extract_hidden_states(batch): Extracts hidden states from a batch using the BERT model.
+        encode_data(column): Tokenizes and encodes the data for the specified column.
+        create_hidden_states(batch_size): Creates hidden states for the encoded data in batches.
+        create_train_test_set(): Splits the hidden states and target values into train and test sets.
+        get_train_test(): Returns the training and test sets (x_train, x_test, y_train, y_test).
+        get_all_data(): Returns all data, encoded data, and hidden states.
+
+    """
+    def __init__(self, data:pd.core.frame.DataFrame, target_column:str,test_size:float = 0.2, model:str = 'distilbert-base-uncased', stratify:bool=True) -> None:
+        self.data = dt.from_pandas(data)
+        self.target_column = target_column
+        if "__index_level_0__" in self.data.column_names:
+          self.data.remove_columns(["__index_level_0__"])
+
+        if stratify == True:
+          self.data = self.data.train_test_split(test_size=test_size, shuffle=True, stratify_by_column=self.target_column)
+        else:
+          self.data = self.data.train_test_split(test_size=test_size, shuffle=True)
+
+        if "distil" in model:
+            self.model = transformers.DistilBertModel.from_pretrained(model)
+            self.tokenizer = transformers.DistilBertTokenizer.from_pretrained(model)
+        else:
+            self.model = transformers.BertModel.from_pretrained(model)
+            self.tokenizer = transformers.BertTokenizer.from_pretrained(model)
+    
+    def extract_hidden_states(self,batch):
+        """
+        Extracts hidden states from a batch using the BERT model.
+
+        Parameters:
+            batch: A batch of tokenized and encoded data.
+
+        Returns:
+            dict: A dictionary containing the extracted hidden states for the batch.
+        """
+        inputs = {k:v.to('cpu') for k, v in batch.items() if k in self.tokenizer.model_input_names}
+        with torch.no_grad():
+            last_hidden_state = self.model(**inputs).last_hidden_state
+        return {"hidden_state": last_hidden_state[:,0].cpu().numpy()}
+    
+    def encode_data(self, column):
+        """
+        Tokenizes and encodes the data for the specified column.
+
+        Parameters:
+            column (str): The column name for which to tokenize and encode the data.
+        """
+        def tokenize(batch):
+          return self.tokenizer(batch[column], padding=True, truncation=True)
+        self.encoded_data = self.data.map(tokenize, batched=True, batch_size=None)
+
+    def create_hidden_states(self, batch_size:int = 500):
+        """
+        Creates hidden states for the encoded data in batches.
+
+        Parameters:
+            batch_size (int, optional): The batch size for processing the encoded data. Default is 500.
+        """
+        self.encoded_data.set_format("torch", columns=["input_ids", "attention_mask", self.target_column])
+        self.hidden_states = self.encoded_data.map(self.extract_hidden_states, batched=True, batch_size=batch_size)
+
+    def create_train_test_set(self):
+        """
+        Splits the hidden states and target values into train and test sets.
+        """
+        self.x_train = np.array(self.hidden_states['train']['hidden_state'])
+        self.y_train = np.array(self.hidden_states['train'][self.target_column])
+        self.x_test = np.array(self.hidden_states['test']['hidden_state'])
+        self.y_test = np.array(self.hidden_states['test'][self.target_column])
+
+    def get_train_test(self):
+        """
+        Returns the training and test sets.
+
+        Returns:
+            tuple: A tuple containing numpy arrays (x_train, x_test, y_train, y_test) representing the training and test data.
+        """
+        return self.x_train, self.x_test, self.y_train, self.y_test
+
+    def get_all_data(self):
+        """
+        Returns all data, encoded data, and hidden states.
+
+        Returns:
+            tuple: A tuple containing datatable Frames representing the data, encoded data, and hidden states.
+        """
+        return self.data, self.encoded_data, self.hidden_states
