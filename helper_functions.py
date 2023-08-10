@@ -956,11 +956,13 @@ class Train_Classifiers:
         self.trained_models = {}
         for key, model in self.models.items():
             print(f"Training {key}")
+            start = Timer()
             if (isinstance(model, (sklearn.naive_bayes.MultinomialNB, sklearn.naive_bayes.GaussianNB, sklearn.ensemble._hist_gradient_boosting.gradient_boosting.HistGradientBoostingClassifier)) and isinstance(self.x_train, scipy.sparse._csr.csr_matrix)):
                 model.fit(self.x_train.toarray(), self.y_train)
             else:
                 model.fit(self.x_train, self.y_train)
-            print(f"{key} Model Trained\n------------------")
+            end = Timer()
+            print(f"{key} Model Trained\nTime taken = {round(end-start, 3)} seconds\n------------------")
             self.trained_models[key]= model
     
     def score(self):
