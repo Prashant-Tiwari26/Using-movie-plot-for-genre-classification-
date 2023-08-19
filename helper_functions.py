@@ -28,6 +28,7 @@ from torch.utils.data import Dataset
 from catboost import CatBoostClassifier
 from nltk.stem import WordNetLemmatizer
 from nltk.tokenize import word_tokenize
+from imblearn.over_sampling import SMOTE
 from timeit import default_timer as Timer
 from nltk.corpus import stopwords, wordnet
 import torchvision.transforms as transforms
@@ -948,6 +949,32 @@ class Train_Classifiers:
         self.y = fix_y(y)
         self.x_train, self.x_test, self.y_train, self.y_test = train_test_split(self.x, self.y, test_size=test_size, stratify=self.y)
         self.models = models
+
+    def resample_trainData(self, strategy='auto', neighbors:int=5):
+        """
+        Resamples the training data using the Synthetic Minority Over-sampling Technique (SMOTE).
+
+        This method applies the Synthetic Minority Over-sampling Technique (SMOTE) to balance
+        the class distribution in the training data. It generates synthetic samples for the
+        minority class to address class imbalance problems in classification tasks.
+
+        Parameters:
+        - strategy (str, optional): The sampling strategy to be used by SMOTE. It can take on
+        values like 'auto', 'minority', 'not minority', 'all', etc. Default is 'auto'.
+        - neighbors (int, optional): The number of nearest neighbors to be considered when
+        generating synthetic samples. It affects the degree of similarity between the
+        generated samples and the existing ones. Default is 5.
+
+        Note:
+        The `x_train` and `y_train` attributes of the object are updated with the resampled data.
+
+        Example:
+        >>> model = YourClassifier()
+        >>> model.fit(x_train, y_train)
+        >>> model.resample_trainData(strategy='minority', neighbors=10)
+
+        """
+        self.x_train, self.y_train = SMOTE(sampling_strategy=strategy, k_neighbors=neighbors, random_state=42).fit_resample(self.x_train, self.y_train)
     
     def fit(self):
         """
@@ -1070,7 +1097,7 @@ class Train_Classifiers:
         Compare the performance metrics (accuracy, precision, recall, f1-score) of all trained models.
 
         Returns:
-        - results (pd.DataFrame): A DataFrame containing the performance metrics of the models, including accuracy, precision, recall, and F1-score for each category.
+        - results (pd.DataFrame): A DataFrame containing the performance metrics of the models, including accuracy, AUC, precision, recall, and F1-score for each category.
 
         Note:
         - The models should have a `predict` method compatible with scikit-learn's classifier interface.
@@ -1081,6 +1108,9 @@ class Train_Classifiers:
         f1 = {}
         recall = {}
         precision = {}
+        roc = []
+
+        self.probabilites = {}
 
         num_categories = len(np.unique(self.y_test))
 
@@ -1098,6 +1128,24 @@ class Train_Classifiers:
             p = precision_score(self.y_test, self.predicts[key], average=None)
             accuracy.append(round(accuracy_score(self.y_test, self.predicts[key]), 3))
 
+            try:
+                if self.y_test.shape[1]:
+                    multiclass = 'ovr'
+                    try:
+                        self.probabilites[key] = value.predict_proba(self.x_test)
+                        roc.append(round(roc_auc_score(self.y_test, self.probabilites[key], multi_class='ovr'), 3))
+                    except AttributeError:
+                        self.probabilites[key] = None
+                        roc.append(None)
+            except IndexError:
+                multiclass = 'raise'
+                try:
+                    self.probabilites[key] = value.predict_proba(self.x_test)[:,1]
+                    roc.append(round(roc_auc_score(self.y_test, self.probabilites[key]), 3))
+                except AttributeError:
+                    self.probabilites[key] = None
+                    roc.append(None)
+
             for i in range(num_categories):
                 f1[i].append(round(f[i], 3))
                 recall[i].append(round(r[i], 3))
@@ -1105,6 +1153,7 @@ class Train_Classifiers:
 
         self.results['Name'] = names
         self.results['Accuracy'] = accuracy
+        self.results['AUC'] = roc
         for i in range(num_categories):
             self.results[f'Precision_{i}'] = precision[i]
         
