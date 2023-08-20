@@ -103,3 +103,64 @@ The best performances by accuracy are from:<br>
 ### Using Class weights
 
 Since the number of observations of different classes vary by a wide margin class weights are computed to help models learn better.
+<br>
+Going this way get the following performances with TF-IDF Embeddings:<br><br>
+![Alt text](output.png)
+<br>
+<br>
+The best performances by accuracy are from:<br>
+- Logistic Regression: 64%
+- SVC: 62.2% 
+- CatBoost: 61.8%
+- LightGBM: 61%
+
+<br>
+Using BERT embeddings the following performance was achieved:<br><br>
+
+![Alt text](image-1.png)
+
+<br><br>
+The best performances by accuracy are from:<br>
+- CatBoost: 65.58%
+- Logistic Regression: 64.6%
+- LightGBM: 63.55%
+- SVC: 63.2% 
+
+> Using class weights seem to hurt overall performance but since classes are unbalanced we must check other metrics.
+
+### Cross-Validation
+
+As the performance is clearly better with __BERT embeddings__ we will be using them going them forward.
+<br>
+#### Logistic Regression
+
+Starting with Logistic Regression we use cross validation with Weighted F1 Score as our parameter and get the following results:<br>
+| Model | Weighted F1 Score |
+|-------|-------------------|
+| Unweighted + default parameters | 0.6708896713962726 |
+| Weighted + default parameters | 0.6600781535713869 |
+| Unweighted + best parameters | 0.6728840114412727 |
+
+The best performance comes from fine-tuned hyperparameters found using `GridSearchCV` with no class weights. The model being the following:
+<br>
+```LogisticRegression(C=0.3, max_iter=2000, penalty='l2', solver='liblinear')```
+<br>
+The **cross-validated accuracy** comes out to be `68%`, compared to `67.42%` for the default model.
+<br>
+
+#### LightGBM
+
+Now with LightGBM we once again use cross validation with Weighted F1 Score as our parameter and get the following results:<br>
+| Model | Weighted F1 Score |
+|-------|-------------------|
+| Unweighted + default parameters | 0.644975856590887 |
+| Weighted + default parameters | 0.6553677280866055 |
+| Unweighted + best parameters | 0.660406101978489 |
+| Weighted + best parameters | 0.66350711949183 |
+
+The best performance comes from fine-tuned hyperparameters found using `GridSearchCV` with class weights. The model being the following:
+<br>
+```LGBMClassifier(class_weight=weights, colsample_bytree=0.8, max_depth=7, learning_rate=0.1, n_estimators=300, subsample=0.8)```
+<br>
+The **cross-validated accuracy** comes out to be `66.9%`, compared to `65.08%` for the default model.
+<br>

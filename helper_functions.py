@@ -1128,17 +1128,14 @@ class Train_Classifiers:
             p = precision_score(self.y_test, self.predicts[key], average=None)
             accuracy.append(round(accuracy_score(self.y_test, self.predicts[key]), 3))
 
-            try:
-                if self.y_test.shape[1]:
-                    multiclass = 'ovr'
-                    try:
-                        self.probabilites[key] = value.predict_proba(self.x_test)
-                        roc.append(round(roc_auc_score(self.y_test, self.probabilites[key], multi_class='ovr'), 3))
-                    except AttributeError:
-                        self.probabilites[key] = None
-                        roc.append(None)
-            except IndexError:
-                multiclass = 'raise'
+            if self.y_test.shape[0] > 2:
+                try:
+                    self.probabilites[key] = value.predict_proba(self.x_test)
+                    roc.append(round(roc_auc_score(self.y_test, self.probabilites[key], multi_class='ovr'), 3))
+                except AttributeError:
+                    self.probabilites[key] = None
+                    roc.append(None)
+            else:
                 try:
                     self.probabilites[key] = value.predict_proba(self.x_test)[:,1]
                     roc.append(round(roc_auc_score(self.y_test, self.probabilites[key]), 3))
