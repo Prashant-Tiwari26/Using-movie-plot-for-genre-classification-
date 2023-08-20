@@ -9,7 +9,6 @@ This project uses summarized plots of movies for classifying their genre. TF-IDF
 - Preprocessing
 - Training
 - Evaluation
-- Usage
 - Dependencies
 
 ## Dataset
@@ -164,3 +163,9 @@ The best performance comes from fine-tuned hyperparameters found using `GridSear
 <br>
 The **cross-validated accuracy** comes out to be `66.9%`, compared to `65.08%` for the default model.
 <br>
+
+> The fine-tuning isn't done on SVC and CatBoost due to lack of computation power needed. If you can, please do it 😊
+
+## Dependencies
+
+The dependencies for this project are mentioned in requirements.txt file. The python version used is 3.10.11
